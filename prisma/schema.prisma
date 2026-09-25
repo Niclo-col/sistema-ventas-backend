@@ -1,0 +1,190 @@
+// Modelo de datos del Sistema de Gestión de Ventas.
+// Todas las entidades definidas en la Fase 1 (Arquitectura) se incluyen aquí
+// desde el inicio; su CRUD se implementa de forma incremental en las fases
+// siguientes, pero el schema y la migración inicial reflejan el diseño completo.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// Auth / usuarios
+// ──────────────────────────────────────────────
+
+enum RoleName {
+  ADMIN
+  SELLER
+}
+
+model Role {
+  id    String   @id @default(uuid())
+  name  RoleName @unique
+  users User[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("roles")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  roleId       String     @map("role_id")
+  role         Role       @relation(fields: [roleId], references: [id])
+  status       UserStatus @default(ACTIVE)
+
+  orders Order[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([roleId])
+  @@map("users")
+}
+
+// ──────────────────────────────────────────────
+// Catálogo: categorías y productos
+// ──────────────────────────────────────────────
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Category {
+  id          String         @id @default(uuid())
+  name        String
+  description String?
+  status      CategoryStatus @default(ACTIVE)
+
+  products Product[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([status])
+  @@map("categories")
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  categoryId  String        @map("category_id")
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  priceUsd    Decimal       @map("price_usd") @db.Decimal(18, 4)
+  status      ProductStatus @default(ACTIVE)
+
+  orderItems OrderItem[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+// ──────────────────────────────────────────────
+// Tasas de cambio
+// ──────────────────────────────────────────────
+
+enum ExchangeRateStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model ExchangeRate {
+  id              String             @id @default(uuid())
+  sourceCurrency  String             @map("source_currency")
+  targetCurrency  String             @map("target_currency")
+  rate            Decimal            @db.Decimal(18, 6)
+  effectiveAt     DateTime           @map("effective_at")
+  source          String
+  status          ExchangeRateStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([effectiveAt(sort: Desc)])
+  @@index([sourceCurrency, targetCurrency, status])
+  @@map("exchange_rates")
+}
+
+// ──────────────────────────────────────────────
+// Órdenes
+// ──────────────────────────────────────────────
+// Nota: sin estado PENDING (decisión de Fase 1) — la orden nace COMPLETED.
+
+enum OrderStatus {
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique @map("order_number")
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id])
+  customerId  String?     @map("customer_id")
+  status      OrderStatus @default(COMPLETED)
+
+  totalUsd        Decimal  @map("total_usd") @db.Decimal(18, 4)
+  exchangeRate    Decimal  @map("exchange_rate") @db.Decimal(18, 6)
+  totalVes        Decimal  @map("total_ves") @db.Decimal(24, 4)
+  exchangeRateAt  DateTime @map("exchange_rate_at")
+
+  cancelledAt DateTime? @map("cancelled_at")
+  cancelledBy String?   @map("cancelled_by")
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(uuid())
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // product_id es NOT NULL: Product usa siempre soft delete (nunca borrado
+  // físico), por lo que la FK permanece íntegra aun con productos inactivos.
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // Snapshot histórico — nunca se reconstruye vía JOIN a Product/Category.
+  productNameSnapshot  String  @map("product_name_snapshot")
+  categoryIdSnapshot   String? @map("category_id_snapshot")
+  categoryNameSnapshot String  @map("category_name_snapshot")
+  unitPriceUsdSnapshot Decimal @map("unit_price_usd_snapshot") @db.Decimal(18, 4)
+
+  quantity    Int
+  subtotalUsd Decimal @map("subtotal_usd") @db.Decimal(18, 4)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
