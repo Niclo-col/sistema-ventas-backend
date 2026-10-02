@@ -7,7 +7,7 @@ import { AnyZodObject } from "zod";
  * number en vez de string). Los errores los captura el errorHandler global.
  */
 export function validate(schema: AnyZodObject) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     const parsed = schema.parse({
       body: req.body,
       params: req.params,
