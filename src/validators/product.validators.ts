@@ -7,11 +7,18 @@ const priceUsdSchema = z
   .regex(/^\d+(\.\d{1,4})?$/, "priceUsd debe ser un número decimal positivo (máx. 4 decimales)")
   .refine((val) => parseFloat(val) > 0, "priceUsd debe ser mayor a 0");
 
+const barcodeSchema = z
+  .string()
+  .trim()
+  .min(1, "barcode no puede estar vacío")
+  .max(64, "barcode no puede superar 64 caracteres");
+
 export const createProductSchema = z.object({
   body: z.object({
     categoryId: z.string().uuid("categoryId inválido"),
     name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(150),
     description: z.string().trim().max(500).optional(),
+    barcode: barcodeSchema.nullable().optional(),
     priceUsd: priceUsdSchema,
   }),
 });
@@ -23,6 +30,7 @@ export const updateProductSchema = z.object({
       categoryId: z.string().uuid().optional(),
       name: z.string().trim().min(2).max(150).optional(),
       description: z.string().trim().max(500).optional(),
+      barcode: barcodeSchema.nullable().optional(),
       priceUsd: priceUsdSchema.optional(),
       status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
     })

@@ -89,6 +89,7 @@ model Product {
   category    Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   name        String
   description String?
+  barcode     String?       @unique
   priceUsd    Decimal       @map("price_usd") @db.Decimal(18, 4)
   status      ProductStatus @default(ACTIVE)
 

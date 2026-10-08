@@ -10,7 +10,14 @@ function buildWhere(
     deletedAt: null,
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-    ...(filters.search ? { name: { contains: filters.search, mode: "insensitive" } } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { name: { contains: filters.search, mode: "insensitive" } },
+            { barcode: { contains: filters.search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -29,6 +36,10 @@ export const productRepository = {
 
   async findById(id: string) {
     return prisma.product.findFirst({ where: { id, deletedAt: null }, include: { category: true } });
+  },
+
+  async findByBarcode(barcode: string) {
+    return prisma.product.findFirst({ where: { barcode, deletedAt: null } });
   },
 
   async create(data: Prisma.ProductUncheckedCreateInput) {

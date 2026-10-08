@@ -1,7 +1,7 @@
 import { productRepository } from "../repositories/product.repository";
 import { categoryRepository } from "../repositories/category.repository";
 import { buildPaginatedResult } from "../utils/pagination";
-import { NotFoundError, ValidationError } from "../utils/AppError";
+import { ConflictError, NotFoundError, ValidationError } from "../utils/AppError";
 import { CreateProductDTO, ListProductFilters, UpdateProductDTO } from "../entities/product.types";
 
 async function assertCategoryUsable(categoryId: string) {
@@ -11,6 +11,14 @@ async function assertCategoryUsable(categoryId: string) {
     throw new ValidationError("No se puede asignar un producto a una categoría inactiva");
   }
   return category;
+}
+
+async function assertBarcodeAvailable(barcode: string | null | undefined, excludeId?: string) {
+  if (!barcode) return;
+  const existing = await productRepository.findByBarcode(barcode);
+  if (existing && existing.id !== excludeId) {
+    throw new ConflictError("Ya existe un producto con ese código de barras");
+  }
 }
 
 export const productService = {
@@ -27,11 +35,13 @@ export const productService = {
 
   async create(dto: CreateProductDTO) {
     await assertCategoryUsable(dto.categoryId);
+    await assertBarcodeAvailable(dto.barcode);
 
     return productRepository.create({
       categoryId: dto.categoryId,
       name: dto.name,
       description: dto.description,
+      barcode: dto.barcode ?? null,
       priceUsd: dto.priceUsd,
     });
   },
@@ -42,6 +52,8 @@ export const productService = {
     if (dto.categoryId) {
       await assertCategoryUsable(dto.categoryId);
     }
+
+    await assertBarcodeAvailable(dto.barcode, id);
 
     return productRepository.update(id, dto);
   },

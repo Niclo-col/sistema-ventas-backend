@@ -1,7 +1,7 @@
 import { productService } from "../../src/services/product.service";
 import { productRepository } from "../../src/repositories/product.repository";
 import { categoryRepository } from "../../src/repositories/category.repository";
-import { NotFoundError, ValidationError } from "../../src/utils/AppError";
+import { ConflictError, NotFoundError, ValidationError } from "../../src/utils/AppError";
 
 jest.mock("../../src/repositories/product.repository");
 jest.mock("../../src/repositories/category.repository");
@@ -42,8 +42,66 @@ describe("productService", () => {
 
       expect(result).toEqual({ id: "p1" });
       expect(mockedProductRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ categoryId: "x", name: "Refresco", priceUsd: "1.50" })
+        expect.objectContaining({
+          categoryId: "x",
+          name: "Refresco",
+          priceUsd: "1.50",
+          barcode: null,
+        })
       );
+    });
+
+    it("persiste el barcode cuando se envía", async () => {
+      mockedCategoryRepo.findById.mockResolvedValue({ id: "x", status: "ACTIVE" } as any);
+      mockedProductRepo.findByBarcode.mockResolvedValue(null);
+      mockedProductRepo.create.mockResolvedValue({ id: "p1" } as any);
+
+      await productService.create({
+        categoryId: "x",
+        name: "Refresco",
+        priceUsd: "1.50",
+        barcode: "7701234567890",
+      });
+
+      expect(mockedProductRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ barcode: "7701234567890" })
+      );
+    });
+
+    it("lanza ConflictError si el barcode ya existe", async () => {
+      mockedCategoryRepo.findById.mockResolvedValue({ id: "x", status: "ACTIVE" } as any);
+      mockedProductRepo.findByBarcode.mockResolvedValue({ id: "p-other" } as any);
+
+      await expect(
+        productService.create({
+          categoryId: "x",
+          name: "Refresco",
+          priceUsd: "1.50",
+          barcode: "7701234567890",
+        })
+      ).rejects.toThrow(ConflictError);
+      expect(mockedProductRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("update", () => {
+    it("permite quitar el barcode enviando null", async () => {
+      mockedProductRepo.findById.mockResolvedValue({ id: "p1" } as any);
+      mockedProductRepo.update.mockResolvedValue({ id: "p1", barcode: null } as any);
+
+      await productService.update("p1", { barcode: null });
+
+      expect(mockedProductRepo.update).toHaveBeenCalledWith("p1", { barcode: null });
+    });
+
+    it("lanza ConflictError si el barcode pertenece a otro producto", async () => {
+      mockedProductRepo.findById.mockResolvedValue({ id: "p1" } as any);
+      mockedProductRepo.findByBarcode.mockResolvedValue({ id: "p2" } as any);
+
+      await expect(productService.update("p1", { barcode: "7701234567890" })).rejects.toThrow(
+        ConflictError
+      );
+      expect(mockedProductRepo.update).not.toHaveBeenCalled();
     });
   });
 

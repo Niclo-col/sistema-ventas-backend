@@ -2,6 +2,7 @@ export interface CreateProductDTO {
   categoryId: string;
   name: string;
   description?: string;
+  barcode?: string | null;
   priceUsd: string; // string para preservar precisión decimal desde el request
 }
 
@@ -9,6 +10,7 @@ export interface UpdateProductDTO {
   categoryId?: string;
   name?: string;
   description?: string;
+  barcode?: string | null;
   priceUsd?: string;
   status?: "ACTIVE" | "INACTIVE";
 }
